@@ -1,0 +1,17 @@
+version: '3.9'
+
+services:
+  redis:
+    image: redis:latest
+    ports:
+      - 6379:6379
+
+  search_service:
+    build: ./search
+    environment:
+      - REDIS_HOST=redis
+
+  fastapi:
+    build: ./app
+    environment:
+      - REDIS_HOST=redis
