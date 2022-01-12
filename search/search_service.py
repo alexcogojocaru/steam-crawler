@@ -44,3 +44,4 @@ if __name__ == '__main__':
                             'appname': name
                         })
                         redis_client.rpush(REDIS_PROCESSED_QUEUE, data)
+        redis_client.rpush(REDIS_PROCESSED_QUEUE, 'FINISHED')

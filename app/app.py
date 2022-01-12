@@ -26,16 +26,22 @@ def get_data(data, element, classname, pattern):
     value = re.search(pattern, searchdata)
     return value.group(1).split(' ')[0]
 
-@app.post('/api')
+@app.post('/api/gamecode')
 async def get_urls(keywords: List[str]):
     for key in keywords:
         redis_client.rpush(REDIS_WAITING_QUEUE, key)
 
-    cache = {}
-    while len(cache.keys()) != len(keywords):
+    cache, search = {}, 0
+    print(search)
+    while search != len(keywords):
         value = redis_client.rpop(REDIS_PROCESSED_QUEUE)
+
         if value:
             value = value.decode()
+            if value == 'FINISHED':
+                search += 1
+                continue
+
             link = json.loads(value)
             keyword = link['value']
             if keyword not in cache:
@@ -45,20 +51,33 @@ async def get_urls(keywords: List[str]):
 
     return cache
 
-@app.post('/api/game/{appid}')
+@app.get('/api/game/{appid}')
 async def get_game(appid: str):
     req = requests.get(f'https://steamcommunity.com/app/{appid}', headers=HEADERS)
 
-    players_ingame      = get_data(req.text, 'span', 'apphub_NumInApp', r'<span class="apphub_NumInApp">(.*)</span>')
-    original_price      = get_data(req.text, 'div', 'discount_original_price', r'<div class="discount_original_price">(.*)</div>')
-    discounted_price    = get_data(req.text, 'div', 'discount_final_price', r'<div class="discount_final_price">(.*)</div>')
+    try:
+        players_ingame = get_data(req.text, 'span', 'apphub_NumInApp', r'<span class="apphub_NumInApp">(.*)</span>')
+    except:
+        return 'INVALID_APP_ID'
 
-    return {
-        'players_ingame':   players_ingame,
-        'original_price':   original_price,
-        'discounted_price': discounted_price,
-        'time':             datetime.now().timestamp()
-    }
+    try:
+        original_price      = get_data(req.text, 'div', 'discount_original_price', r'<div class="discount_original_price">(.*)</div>')
+        discounted_price    = get_data(req.text, 'div', 'discount_final_price', r'<div class="discount_final_price">(.*)</div>')
+
+        return {
+            'players_ingame': players_ingame,
+            'original_price': original_price,
+            'discounted_price': discounted_price,
+            'time': datetime.now().timestamp()
+        }
+    except:
+        price = get_data(req.text, 'div', 'price', r'<div class="price">(.*)</div>')
+
+        return {
+            'players_ingame': players_ingame,
+            'price': price,
+            'time': datetime.now().timestamp()
+        }
 
 if __name__ == '__main__':
-    uvicorn.run("app:app", host='localhost', port=8000, reload=True)
+    uvicorn.run("app:app", host='0.0.0.0', port=8000, reload=True)
